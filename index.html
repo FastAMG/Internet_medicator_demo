@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>网络调解员</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="device">
+  <div id="phone">
+    <!-- 状态栏 -->
+    <div id="statusbar">
+      <span id="clock">09:41</span>
+      <span class="status-right"><span>信号</span> <span>WiFi</span> <span id="battery">100%</span></span>
+    </div>
+
+    <!-- 主屏 -->
+    <section id="screen-home" class="screen active">
+      <div id="wallpaper" class="wallpaper"></div>
+      <div class="home-grid" id="homeGrid"></div>
+      <div class="dock"></div>
+    </section>
+
+    <!-- 小信 会话列表 -->
+    <section id="screen-xiaoxin" class="screen">
+      <div class="appbar">
+        <span class="back" data-back="home">‹</span>
+        <span class="title">小信</span>
+        <span class="balance">余额 ¥<span class="balance-val">0.00</span></span>
+      </div>
+      <div class="chat-list" id="chatList"></div>
+    </section>
+
+    <!-- 聊天界面 -->
+    <section id="screen-chat" class="screen">
+      <div class="appbar chatbar">
+        <span class="back" data-back="xiaoxin">‹</span>
+        <span class="title" id="chatTitle">对话</span>
+        <span class="spacer"></span>
+      </div>
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-label">调解进度 <span id="progressVal">0</span>%</div>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="affinity">好感度 <span id="affinityVal">0</span></div>
+      </div>
+      <div class="msg-area" id="msgArea"></div>
+      <div class="balance-strip">余额 ¥<span class="balance-val">0.00</span></div>
+      <div class="input-bar">
+        <button class="tool-btn" id="btnImage" title="发送图片">🖼</button>
+        <input type="text" id="msgInput" placeholder="说点什么…">
+        <button class="tool-btn" id="btnRedPacket" title="发红包">🧧</button>
+        <button class="send-btn" id="btnSend">发送</button>
+      </div>
+    </section>
+
+    <!-- Word 文档 -->
+    <section id="screen-word" class="screen">
+      <div class="appbar">
+        <span class="back" data-back="home">‹</span>
+        <span class="title">异象应对手册.docx</span>
+        <span class="spacer"></span>
+      </div>
+      <div class="doc-body" id="docBody"></div>
+    </section>
+
+    <!-- 图库 -->
+    <section id="screen-gallery" class="screen">
+      <div class="appbar">
+        <span class="back" data-back="home">‹</span>
+        <span class="title">图库</span>
+        <span class="spacer"></span>
+      </div>
+      <div class="gallery-body" id="galleryBody"></div>
+    </section>
+
+    <!-- 更新通知 -->
+    <section id="screen-updates" class="screen">
+      <div class="appbar">
+        <span class="back" data-back="home">‹</span>
+        <span class="title">更新通知</span>
+        <span class="spacer"></span>
+      </div>
+      <div class="updates-body" id="updatesBody"></div>
+    </section>
+
+    <!-- 设置 -->
+    <section id="screen-settings" class="screen">
+      <div class="appbar">
+        <span class="back" data-back="home">‹</span>
+        <span class="title">设置</span>
+        <span class="spacer"></span>
+      </div>
+      <div class="settings-body">
+        <div class="about-box">
+          <div class="about-title">网络调解员</div>
+          <div class="about-sub">Internet Medicator · v0.1</div>
+          <p class="about-line">本作对话由 AI 实时生成，内容可能存在不合理或重复之处，请酌情看待。</p>
+          <p class="about-line">游戏中的角色、事件、机构均为虚构，与现实无关；涉及的心理危机、超自然情节仅作剧情演出，请勿模仿。如遇真实心理困扰，请寻求专业帮助。</p>
+        </div>
+        <label>API 密钥 (SiliconFlow)
+          <input type="password" id="apiKeyInput" placeholder="sk-...  留空则使用演示模式">
+        </label>
+        <label>模型
+          <input type="text" id="modelInput" value="Qwen/Qwen2.5-7B-Instruct">
+        </label>
+        <label>界面大小：<span id="scaleVal">100%</span>
+          <input type="range" id="scaleInput" min="70" max="130" step="5" value="100">
+        </label>
+        <div class="scale-presets">
+          <button class="btn small" data-scale="80">小</button>
+          <button class="btn small" data-scale="100">默认</button>
+          <button class="btn small" data-scale="115">大</button>
+        </div>
+        <label>界面比例：
+          <div class="ratio-presets" id="ratioPresets"></div>
+        </label>
+        <button class="btn" id="saveSettings">保存设置</button>
+        <button class="btn danger" id="resetGame">清空存档</button>
+        <div class="hint" id="modeHint"></div>
+      </div>
+    </section>
+
+    <!-- 结局弹层 -->
+    <div id="overlay" class="overlay hidden">
+      <div class="overlay-card">
+        <h2 id="overlayTitle"></h2>
+        <p id="overlayText"></p>
+        <button class="btn" id="overlayClose">继续</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/sfx.js"></script>
+<script src="js/config.js"></script>
+<script src="js/save.js"></script>
+<script src="js/api.js"></script>
+<script src="js/assets.js"></script>
+<script src="js/easter.js"></script>
+<script src="js/game.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
