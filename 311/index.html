@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>311</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0a;
+    color: #c0c0c0;
+    font-family: 'Courier New', monospace;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .container {
+    max-width: 600px;
+    padding: 40px;
+    text-align: center;
+  }
+  .glitch {
+    font-size: 48px;
+    color: #e74c3c;
+    letter-spacing: 8px;
+    margin-bottom: 30px;
+    animation: flicker 3s infinite;
+  }
+  @keyframes flicker {
+    0%, 100% { opacity: 1; }
+    45% { opacity: 1; }
+    46% { opacity: 0.3; }
+    47% { opacity: 1; }
+    48% { opacity: 0.5; }
+    49% { opacity: 1; }
+  }
+  .msg {
+    font-size: 15px;
+    line-height: 2;
+    color: #888;
+    margin-bottom: 30px;
+  }
+  .msg .red { color: #e74c3c; }
+  .msg .green { color: #2ecc71; }
+  .ascii {
+    font-size: 12px;
+    line-height: 1.2;
+    color: #333;
+    white-space: pre;
+    margin: 20px 0;
+  }
+  .back {
+    display: inline-block;
+    margin-top: 20px;
+    padding: 10px 24px;
+    border: 1px solid #444;
+    color: #888;
+    text-decoration: none;
+    font-size: 14px;
+    transition: all 0.3s;
+  }
+  .back:hover {
+    border-color: #e74c3c;
+    color: #e74c3c;
+  }
+  .hidden-input {
+    margin-top: 30px;
+  }
+  .hidden-input input {
+    background: #111;
+    border: 1px solid #333;
+    color: #c0c0c0;
+    padding: 8px 12px;
+    font-family: inherit;
+    font-size: 14px;
+    width: 200px;
+    text-align: center;
+  }
+  .hidden-input input:focus {
+    outline: none;
+    border-color: #e74c3c;
+  }
+  #secretOut {
+    margin-top: 12px;
+    font-size: 13px;
+    color: #2ecc71;
+    min-height: 20px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="glitch">3 1 1</div>
+  <div class="msg">
+    你不应该在这里。<br>
+    这里是<span class="red">异常信息收容室</span>。<br>
+    所有调解失败的记录、被抹除的客户档案，<br>
+    最终都会沉淀到这个房间。<br><br>
+    <span class="green">但既然你来了，说明你有权查看。</span>
+  </div>
+  <div class="ascii">
+    ┌─────────────────┐
+    │  R O O M   3 1 1  │
+    │  ▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+    │  ▓  [ 收容中 ] ▓  │
+    │  ▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+    └─────────────────┘
+  </div>
+  <div class="hidden-input">
+    <input type="text" id="codeInput" placeholder="输入收容编号..." maxlength="20">
+    <div id="secretOut"></div>
+  </div>
+  <a href="../index.html" class="back">返回调解处</a>
+</div>
+<script>
+  // 隐藏交互：输入特定编号查看被收容的档案
+  const codes = {
+    '000': '档案000：第一名调解员。已失联。原因：空心病。',
+    '311': '档案311：你。状态：在职。备注：自我认知稳定度...待评估。',
+    '7': '档案007：回声小人原型。收容状态：已逃逸。',
+    'who': '档案???：谁谁谁谁。不是一个人，是一种症状。',
+    '1107': '档案1107：这个糟透的夏天，我也患上了空心病。'
+  };
+  document.getElementById('codeInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      const code = this.value.trim().toLowerCase();
+      const out = document.getElementById('secretOut');
+      if (codes[code]) {
+        out.textContent = '> ' + codes[code];
+      } else if (code) {
+        out.textContent = '> 查无此档案。';
+        out.style.color = '#e74c3c';
+        setTimeout(() => { out.style.color = '#2ecc71'; }, 1000);
+      }
+    }
+  });
+</script>
+</body>
+</html>
