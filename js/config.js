@@ -42,7 +42,7 @@ const GAME_CONFIG = {
     { id: 'gal_1_2', file: 'assets/gal_1_2.png', caption: '的照片' },
     { id: 'gal_3', file: 'assets/gal_3.png', caption: '世界之外' },
     { id: 'gal_4', file: 'assets/gal_4.png', caption: '第一名客户' },
-    { id: 'gal_5', file: 'assets/gal_5.png', caption: ' 路标' },
+    { id: 'gal_5', file: 'assets/gal_5.jpg', caption: ' 路标' },
     { id: 'gal_6', file: 'assets/gal_6.png', caption: '尘兔收藏' },
     { id: 'gal_7', file: 'assets/gal_7.png', caption: '你' },
     { id: 'gal_8', file: 'assets/gal_8.png', caption: '休息' },
