@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>记忆碎片</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0a;
+    color: #c0c0c0;
+    font-family: 'Courier New', monospace;
+    min-height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+  #game {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  #title {
+    font-size: 28px;
+    color: #e74c3c;
+    letter-spacing: 4px;
+    margin-bottom: 10px;
+    text-shadow: 0 0 10px rgba(231,76,60,.5);
+  }
+  #subtitle {
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 30px;
+  }
+  #board {
+    position: relative;
+    width: 360px;
+    height: 360px;
+    border: 1px solid #222;
+    background: #050505;
+  }
+  .fragment {
+    position: absolute;
+    padding: 6px 10px;
+    background: rgba(255,255,255,.05);
+    border: 1px solid #1a1a1a;
+    color: #333;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.3s;
+    white-space: nowrap;
+  }
+  .fragment:hover {
+    border-color: #444;
+    color: #666;
+  }
+  .fragment.found {
+    color: #2ecc71;
+    border-color: #2ecc71;
+    background: rgba(46,204,113,.08);
+    cursor: default;
+  }
+  #counter {
+    margin-top: 20px;
+    font-size: 15px;
+    color: #888;
+  }
+  #counter .num { color: #e74c3c; font-weight: bold; }
+  #result {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.95);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  #result.show { display: flex; }
+  #result .big {
+    font-size: 80px;
+    color: #e74c3c;
+    letter-spacing: 12px;
+    margin-bottom: 20px;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  #result .hint {
+    font-size: 16px;
+    color: #888;
+    line-height: 2;
+    text-align: center;
+    max-width: 400px;
+  }
+  #result .hint .key {
+    color: #e74c3c;
+    font-size: 22px;
+    font-weight: bold;
+  }
+  #result .back {
+    margin-top: 30px;
+    padding: 10px 24px;
+    border: 1px solid #444;
+    color: #888;
+    text-decoration: none;
+    font-size: 14px;
+    transition: all 0.3s;
+  }
+  #result .back:hover {
+    border-color: #e74c3c;
+    color: #e74c3c;
+  }
+</style>
+</head>
+<body>
+<div id="game">
+  <div id="title">记忆碎片</div>
+  <div id="subtitle">点击散落的碎片，找回被遗忘的记忆</div>
+  <div id="board"></div>
+  <div id="counter">已找回 <span class="num" id="found">0</span> / <span id="total">0</span> 个碎片</div>
+</div>
+<div id="result">
+  <div class="big">33</div>
+  <div class="hint">
+    你找回了所有碎片，但有些东西永远找不回来了。<br><br>
+    33个记忆已被遗忘。<br>
+    它们在 <span class="key">311</span> 房间等着你。<br>
+    输入编号 <span class="key">33</span>，看看被遗忘的是什么。
+  </div>
+  <a href="../index.html" class="back">返回调解处</a>
+</div>
+<script>
+  // 记忆碎片文本
+  const fragments = [
+    '她的笑声', '那天的雨', '妈妈做的饭', '旧工牌', '第一次调解',
+    '他的名字', '天台的风', '14楼的电梯', '台风夜', '镜子里的脸',
+    '谁谁谁谁', '朴神父的话', '文件传输助手', '空白的档案', '回声',
+    '红色的纸', '盲区的人影', '纸做的手臂', '金色的瞳孔', '消失的文字',
+    '小信的通知', '人事部的灯', '调解处的走廊', '年终评估', '你的名字',
+    '你的名字', '你的名字', '????', '空心病', '遗忘', '遗忘', '遗忘', '33'
+  ];
+  const board = document.getElementById('board');
+  const foundEl = document.getElementById('found');
+  const totalEl = document.getElementById('total');
+  totalEl.textContent = fragments.length;
+  let foundCount = 0;
+
+  fragments.forEach((text, i) => {
+    const el = document.createElement('div');
+    el.className = 'fragment';
+    el.textContent = text;
+    // 随机位置
+    const x = Math.random() * 280 + 10;
+    const y = Math.random() * 320 + 10;
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    // 随机透明度（越靠后越暗）
+    el.style.opacity = 0.3 + Math.random() * 0.4;
+    el.addEventListener('click', function() {
+      if (this.classList.contains('found')) return;
+      this.classList.add('found');
+      this.style.opacity = '1';
+      foundCount++;
+      foundEl.textContent = foundCount;
+      if (foundCount >= fragments.length) {
+        setTimeout(() => {
+          document.getElementById('result').classList.add('show');
+        }, 600);
+      }
+    });
+    board.appendChild(el);
+  });
+</script>
+</body>
+</html>

@@ -49,6 +49,10 @@
     // Debug 后门：神秘代码直接触发好/坏结局（无中文，避免误触）
     if (v === '#goodend') { Game.debugEnd('success'); return; }
     if (v === '#badend') { Game.debugEnd('fail'); return; }
+    // 测试后门：一键解锁/通关
+    if (v === '#unlockall') { Game.debugUnlockAll(); return; }
+    if (v === '#allcg') { Game.debugUnlockAllCg(); return; }
+    if (v === '#clearall') { Game.debugClearAll(); return; }
     Game.send(v, 'text');
   };
   document.getElementById('btnSend').addEventListener('click', send);
@@ -63,13 +67,20 @@
     Game.send('', 'redpacket', { amount: parseFloat(amount) || def, title: title || '红包' });
   });
 
-  // 图片：从可发送图片中选
+  // 魔法图片：选择类型发送（每关每种限用一次，消耗余额）
   document.getElementById('btnImage').addEventListener('click', () => {
-    const list = GAME_CONFIG.sendableImages.map((i, idx) => `${idx + 1}. ${i.label}`).join('\n');
-    const choice = prompt('选择图片发送：\n' + list, '1');
+    const npc = Game.currentNpc();
+    if (!npc) return;
+    const cost = GAME_CONFIG.magicImageCost || 15;
+    const imgs = GAME_CONFIG.magicImages || [];
+    const list = imgs.map((img, idx) => {
+      const used = Save.isMagicUsed(npc.id, img.effect);
+      return `${idx + 1}. ${img.label}（${img.desc}）${used ? ' [已用]' : ''} - ¥${cost}`;
+    }).join('\n');
+    const choice = prompt('选择魔法图片发送：\n' + list + '\n（每关每种限用一次）', '1');
     const idx = parseInt(choice, 10) - 1;
-    if (isNaN(idx) || idx < 0 || idx >= GAME_CONFIG.sendableImages.length) return;
-    Game.send(GAME_CONFIG.sendableImages[idx].label, 'image');
+    if (isNaN(idx) || idx < 0 || idx >= imgs.length) return;
+    Game.send('', 'magic', { effect: imgs[idx].effect });
   });
 
   // 设置

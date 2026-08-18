@@ -26,12 +26,13 @@ const Save = {
         uiScale: 1,
         uiRatio: 'phone',
         balance: (window.GAME_CONFIG && GAME_CONFIG.startBalance) || 100,
-        conversations: {}, // npcId -> { messages:[{role,content,type,ts}], progress, affinity, status:'active'|'success'|'fail', seen }
+        conversations: {}, // npcId -> { messages:[{role,content,type,ts}], progress, affinity, status:'active'|'success'|'fail', seen, magicUsed, prevProgress, prevAffinity }
         history: [],       // 结局记录 [{npcId, name, result, ts }]
         seeded: false,     // 是否已注入初始消息
         unlockedNpcs: [],  // 已解锁的 NPC id 列表
         completedNpcs: [], // 已完成的 NPC id 列表（无论输赢）
-        unlockedGallery: [] // 已解锁的图库 CG id 列表
+        unlockedGallery: [], // 已解锁的图库 CG id 列表
+        manualCUnlocked: false // 手册c条目是否解锁（朴神父137会话结束后解锁）
       };
       // 初始化解锁列表：config 里标记 initialUnlock 的 NPC
       if (window.GAME_CONFIG) {
@@ -49,6 +50,7 @@ const Save = {
       if (!this.data.unlockedNpcs) this.data.unlockedNpcs = [];
       if (!this.data.completedNpcs) this.data.completedNpcs = [];
       if (!this.data.unlockedGallery) this.data.unlockedGallery = [];
+      if (this.data.manualCUnlocked === undefined) this.data.manualCUnlocked = false;
       // 旧存档迁移：若未初始化解锁列表，用 config 的 initialUnlock 填充
       if (this.data.unlockedNpcs.length === 0 && window.GAME_CONFIG) {
         this.data.unlockedNpcs = GAME_CONFIG.npcs.filter(n => n.initialUnlock).map(n => n.id);
@@ -84,10 +86,18 @@ const Save = {
         progress: 0,
         affinity: 0,
         status: 'active',
-        seen: false
+        seen: false,
+        magicUsed: {},      // 魔法图片使用记录 { progress: true, affinity: true, rollback: true }
+        prevProgress: 0,    // 上一轮对话前的进度（回溯之图用）
+        prevAffinity: 0     // 上一轮对话前的好感（回溯之图用）
       };
     }
-    return this.data.conversations[npcId];
+    // 旧会话迁移：补齐新字段
+    const c = this.data.conversations[npcId];
+    if (!c.magicUsed) c.magicUsed = {};
+    if (c.prevProgress === undefined) c.prevProgress = c.progress || 0;
+    if (c.prevAffinity === undefined) c.prevAffinity = c.affinity || 0;
+    return c;
   },
 
   addMessage(npcId, role, content, type = 'text') {
@@ -117,6 +127,24 @@ const Save = {
   markSeen(npcId) {
     const conv = this.getConversation(npcId);
     conv.seen = true;
+    this.save();
+  },
+
+  // —— 魔法图片使用记录 ——
+  isMagicUsed(npcId, effect) {
+    const conv = this.getConversation(npcId);
+    return !!(conv.magicUsed && conv.magicUsed[effect]);
+  },
+  markMagicUsed(npcId, effect) {
+    const conv = this.getConversation(npcId);
+    if (!conv.magicUsed) conv.magicUsed = {};
+    conv.magicUsed[effect] = true;
+    this.save();
+  },
+
+  // —— 手册c条目解锁 ——
+  setManualCUnlocked() {
+    this.data.manualCUnlocked = true;
     this.save();
   },
 
@@ -186,12 +214,14 @@ const Save = {
   },
 
   // 从未解锁的关卡池随机抽 1 个解锁，返回解锁的 NPC（null 表示池已空）
-  // 排除：初始解锁、隐藏关触发(unlockCondition)、非初始关触发(unlockOnNonInitial)、结局(ending)、已解锁
+  // 排除：初始解锁、隐藏关触发(unlockCondition)、非初始关触发(unlockOnNonInitial)、
+  //       进度触发(unlockAtProgress)、成功后触发(unlockAfterSuccess)、结局(ending)、已解锁
   unlockRandom() {
     if (!window.GAME_CONFIG) return null;
     const EXCLUDE_IDS = ['ending'];
     const pool = GAME_CONFIG.npcs.filter(n =>
       !n.initialUnlock && !n.unlockCondition && !n.unlockOnNonInitial
+      && !n.unlockAtProgress && !n.unlockAfterSuccess
       && !EXCLUDE_IDS.includes(n.id) && !this.isUnlocked(n.id)
     );
     if (pool.length === 0) return null;
@@ -204,13 +234,14 @@ const Save = {
   },
 
   // 统计主线关卡调解数据
-  // 排除：隐藏关(unlockCondition)、文件传输助手(xiaoxin_fta，特殊机制，不影响结局触发)
+  // 排除：隐藏关(unlockCondition)、成功后触发关(unlockAfterSuccess，可能无法解锁)、
+  //       文件传输助手(xiaoxin_fta，特殊机制，不影响结局触发)
   getStats() {
     if (!window.GAME_CONFIG) return { total: 0, success: 0, completed: 0, rate: 0 };
     const EXCLUDE_FROM_MAIN = ['xiaoxin_fta'];
     const mainNpcs = GAME_CONFIG.npcs.filter(n =>
       (n.type === 'psych' || n.type === 'anomaly') && n.target > 0
-      && !n.unlockCondition && !EXCLUDE_FROM_MAIN.includes(n.id)
+      && !n.unlockCondition && !n.unlockAfterSuccess && !EXCLUDE_FROM_MAIN.includes(n.id)
     );
     const total = mainNpcs.length;
     const success = mainNpcs.filter(n => this.getConversation(n.id).status === 'success').length;
@@ -238,11 +269,11 @@ const Save = {
     return false;
   },
 
-  // 从未解锁的随机 CG 池抽 1 个（排除有 unlockAfter/unlockAfterChat 的指定解锁 CG）
+  // 从未解锁的随机 CG 池抽 1 个（排除有 unlockAfter/unlockAfterChat/mystery 的 CG）
   unlockRandomGallery() {
     if (!window.GAME_CONFIG) return null;
     const pool = GAME_CONFIG.galleryImages.filter(g =>
-      !g.unlockAfter && !g.unlockAfterChat && !this.isGalleryUnlocked(g.id)
+      !g.unlockAfter && !g.unlockAfterChat && !g.mystery && !this.isGalleryUnlocked(g.id)
     );
     if (pool.length === 0) return null;
     const pick = pool[Math.floor(Math.random() * pool.length)];

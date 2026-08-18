@@ -90,7 +90,10 @@ const Game = {
   },
 
   previewText(m) {
-    if (m.type === 'image') return '[图片] ' + (m.content || '');
+    if (m.type === 'image') {
+      const img = (GAME_CONFIG.magicImages || []).find(i => i.id === m.content || i.label === m.content);
+      return '[图片] ' + (img ? img.label : (m.content || ''));
+    }
     if (m.type === 'redpacket') return '[红包] ' + (m.content || '');
     return m.content;
   },
@@ -120,10 +123,12 @@ const Game = {
     conv.messages.forEach(m => area.appendChild(this.makeMsg(m, npc)));
     area.scrollTop = area.scrollHeight;
 
-    // 输入栏按钮：彩蛋/剧情 NPC 不发红包，仅保留文字与图片
+    // 输入栏按钮：彩蛋/剧情/闲聊 NPC 不发红包和魔法图片，仅保留文字
     const narrative = (npc.type === 'easter' || npc.type === 'story' || npc.type === 'chat');
     document.getElementById('btnRedPacket').style.display = narrative ? 'none' : 'block';
-    document.getElementById('btnImage').style.display = 'block';
+    // 魔法图片仅对有进度目标的 psych/anomaly NPC 开放
+    const canMagic = !narrative && npc.target && npc.target > 0;
+    document.getElementById('btnImage').style.display = canMagic ? 'block' : 'none';
   },
 
   currentNpc() {
@@ -137,10 +142,9 @@ const Game = {
     const avatarStyle = `background:${cfg.avatarColor}`;
     let bubble;
     if (m.type === 'image') {
-      const img = GAME_CONFIG.sendableImages.find(i => i.label === m.content) || { emoji: '🖼', bg: '#eee', file: '' };
+      const img = (GAME_CONFIG.magicImages || []).find(i => i.id === m.content || i.label === m.content) || { emoji: '🖼', bg: '#eee' };
       const fallback = Assets.imageUri(img.emoji, img.bg);
-      const src = img.file || fallback;
-      bubble = `<div class="bubble img"><img class="msg-img" src="${src}" onerror="this.onerror=null;this.src='${fallback}'"></div>`;
+      bubble = `<div class="bubble img"><img class="msg-img" src="${fallback}"></div>`;
     } else if (m.type === 'redpacket') {
       bubble = `<div class="bubble rp"><div class="rp-title">${this.escape(m.content || '红包')}</div><div class="rp-amount">¥ ${(m.amount||8.88).toFixed(2)}</div><div class="rp-sub">调解员的心意</div></div>`;
     } else {
@@ -171,6 +175,10 @@ const Game = {
   async send(text, type = 'text', extra = null) {
     const npc = this.currentNpc();
     if (!npc) return;
+    // 魔法图片：走独立逻辑，不调用 API
+    if (type === 'magic') {
+      return this.sendMagicImage(extra?.effect);
+    }
     const conv = Save.getConversation(npc.id);
     if (conv.status !== 'active') {
       this.showOverlay(conv.status === 'success' ? '会话已结束' : '会话已失败',
@@ -231,6 +239,9 @@ const Game = {
       if (result.progress) {
         const delta = Number(result.progress.delta) || 0;
         const aff = Number(result.progress.affinity) || 0;
+        // 保存回溯之图所需的上一轮状态
+        conv.prevProgress = conv.progress || 0;
+        conv.prevAffinity = conv.affinity || 0;
         conv.progress = Math.round((conv.progress || 0) + delta);
         conv.affinity = (conv.affinity || 0) + aff;
         Save.save();
@@ -244,12 +255,15 @@ const Game = {
         conv.status = 'success';
         const reward = npc.reward || 0;
         if (reward > 0) Save.addBalance(reward);
+        // 朴神父137会话结束后解锁手册c条目
+        if (npc.unlockManualCOnEnd) Save.setManualCUnlocked();
         Save.save();
         Save.recordHistory(npc.id, npc.name, 'success');
         this.renderBalance();
         this._onLevelCompleted(npc, 'success');
+        const extraMsg = npc.unlockManualCOnEnd ? '\n异象应对手册已解锁隐藏条目。' : '';
         setTimeout(() => this.showOverlay('剧情结束',
-          `${npc.name} 的剧情已播完。${reward > 0 ? `\n获得 ¥${reward.toFixed(2)}\n余额 ¥${(Save.data.balance||0).toFixed(2)}` : ''}`, 'success'), 400);
+          `${npc.name} 的剧情已播完。${reward > 0 ? `\n获得 ¥${reward.toFixed(2)}\n余额 ¥${(Save.data.balance||0).toFixed(2)}` : ''}${extraMsg}`, 'success'), 400);
       }
 
       // 处理彩蛋 action
@@ -273,6 +287,68 @@ const Game = {
       document.getElementById('btnSend').disabled = false;
       this.renderChat();
     }
+  },
+
+  // ===== 魔法图片发送（不调用 API，直接生效） =====
+  sendMagicImage(effect) {
+    const npc = this.currentNpc();
+    if (!npc) return;
+    const conv = Save.getConversation(npc.id);
+    if (conv.status !== 'active') {
+      this.showOverlay(conv.status === 'success' ? '会话已结束' : '会话已失败',
+        '此会话已结束，无法继续。', conv.status);
+      return;
+    }
+    const cost = GAME_CONFIG.magicImageCost || 15;
+    if (!Save.canAfford(cost)) {
+      this.showOverlay('余额不足',
+        `魔法图片需要 ¥${cost.toFixed(2)}\n当前余额 ¥${(Save.data.balance||0).toFixed(2)}`, 'fail');
+      return;
+    }
+    if (Save.isMagicUsed(npc.id, effect)) {
+      this.showOverlay('已使用', '本关该魔法图片已使用过，每关每种只能使用一次。', 'info');
+      return;
+    }
+    const img = (GAME_CONFIG.magicImages || []).find(i => i.effect === effect);
+    if (!img) return;
+
+    // 扣费并标记已使用
+    Save.addBalance(-cost);
+    Save.markMagicUsed(npc.id, effect);
+
+    if (effect === 'rollback') {
+      // 回溯：移除最后一轮对话（玩家消息 + NPC 回复）
+      const msgs = conv.messages;
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        if (msgs[i].role === 'them') { msgs.splice(i, 1); break; }
+      }
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        if (msgs[i].role === 'me') { msgs.splice(i, 1); break; }
+      }
+      // 恢复上一轮的进度/好感
+      conv.progress = conv.prevProgress || 0;
+      conv.affinity = conv.prevAffinity || 0;
+      Save.save();
+      this.renderChat();
+      this.renderBalance();
+      setTimeout(() => this.showOverlay('回溯之图', '已回退至上一轮对话，进度已恢复。', 'info'), 300);
+      return;
+    }
+
+    // 进度/好感图片：写入图片消息
+    Save.addMessage(npc.id, 'me', img.id, 'image');
+    if (effect === 'progress') {
+      conv.progress = Math.round((conv.progress || 0) + (img.delta || 30));
+    } else if (effect === 'affinity') {
+      conv.affinity = (conv.affinity || 0) + (img.delta || 10);
+    }
+    Save.save();
+    // NPC 反应（不调用 API）
+    Save.addMessage(npc.id, 'them', '（对方似乎被图片影响了）');
+    this.renderChat();
+    this.renderBalance();
+    // 检查结局
+    this.checkEnd(npc, conv);
   },
 
   checkEnd(npc, conv) {
@@ -325,6 +401,26 @@ const Game = {
         }
       });
     }
+
+    // 某关成功后解锁指定 NPC（如程心成功→程心心，羊羊羊成功→羊不羊）
+    if (result === 'success') {
+      GAME_CONFIG.npcs.filter(n => n.unlockAfterSuccess === npc.id).forEach(n => {
+        if (!Save.isUnlocked(n.id)) {
+          Save.unlockSpecific(n.id);
+          unlockedNames.push(n.name);
+        }
+      });
+    }
+
+    // 主线完成率达到阈值后解锁指定 NPC（如朴神父137需50%进度）
+    const stats = Save.getStats();
+    const completionRate = stats.total > 0 ? stats.completed / stats.total : 0;
+    GAME_CONFIG.npcs.filter(n => n.unlockAtProgress && completionRate >= n.unlockAtProgress).forEach(n => {
+      if (!Save.isUnlocked(n.id)) {
+        Save.unlockSpecific(n.id);
+        unlockedNames.push(n.name);
+      }
+    });
 
     // 从随机池解锁下一关
     const next = Save.unlockRandom();
@@ -458,6 +554,57 @@ const Game = {
     }
   },
 
+  // 测试后门：一键解锁所有关卡
+  debugUnlockAll() {
+    GAME_CONFIG.npcs.forEach(n => {
+      if (!Save.isUnlocked(n.id)) Save.unlockSpecific(n.id);
+    });
+    Save.save();
+    this.showScreen('xiaoxin');
+    this.showOverlay('[DEBUG] 全部解锁', '所有 NPC 已加入小信列表。', 'info');
+  },
+
+  // 测试后门：一键解锁所有 CG
+  debugUnlockAllCg() {
+    (GAME_CONFIG.galleryImages || []).forEach(cg => {
+      if (cg.mystery) return; // 神秘图片始终显示，无需解锁
+      if (!Save.isGalleryUnlocked(cg.id)) Save.unlockGallery(cg.id);
+    });
+    Save.save();
+    this.showOverlay('[DEBUG] 图库全开', '所有 CG 已解锁。', 'info');
+  },
+
+  // 测试后门：一键通关所有主线关卡
+  debugClearAll() {
+    let totalReward = 0;
+    let cleared = 0;
+    GAME_CONFIG.npcs.forEach(n => {
+      // 仅处理有进度目标的主线关卡（psych/anomaly）
+      if ((n.type !== 'psych' && n.type !== 'anomaly') || !n.target || n.target <= 0) return;
+      const conv = Save.getConversation(n.id);
+      if (conv.status === 'active') {
+        conv.status = 'success';
+        conv.progress = n.target;
+        const reward = n.reward || 0;
+        if (reward > 0) { Save.addBalance(reward); totalReward += reward; }
+        Save.markCompleted(n.id);
+        Save.recordHistory(n.id, n.name, 'success');
+        cleared++;
+      } else if (!Save.isCompleted(n.id)) {
+        Save.markCompleted(n.id);
+      }
+    });
+    // 通关后解锁所有 NPC（含 ending、unlockAfterSuccess 等）
+    GAME_CONFIG.npcs.forEach(n => {
+      if (!Save.isUnlocked(n.id)) Save.unlockSpecific(n.id);
+    });
+    Save.save();
+    this.renderBalance();
+    this.showScreen('xiaoxin');
+    this.showOverlay('[DEBUG] 全部通关',
+      `已通关 ${cleared} 个主线关卡。\n获得工资 ¥${totalReward.toFixed(2)}\n余额 ¥${(Save.data.balance||0).toFixed(2)}\n所有 NPC 已解锁。`, 'success');
+  },
+
   // ===== 弹层 =====
   showOverlay(title, text, type) {
     const ov = document.getElementById('overlay');
@@ -481,6 +628,9 @@ const Game = {
     let html = `<h1>${m.title}</h1>`;
     m.sections.forEach(s => {
       html += `<h2>${s.h}</h2><p class="${s.tampered ? 'tampered' : ''}">${s.p}</p>`;
+      if (Save.data.manualCUnlocked && s.c) {
+        html += `<p class="c-entry" style="margin:6px 0 12px;padding:8px 12px;border-left:3px solid #e74c3c;background:#fdf2f2;color:#666;font-size:13px">[补充条目] ${s.c}</p>`;
+      }
     });
     if (Save.data.docTampered) {
       html += `<p style="margin-top:20px;color:#999;font-size:12px">⚠ 本文档已被未知来源修改</p>`;
@@ -493,21 +643,62 @@ const Game = {
     const body = document.getElementById('galleryBody');
     const imgs = GAME_CONFIG.galleryImages || [];
     const unlocked = imgs.filter(im => Save.isGalleryUnlocked(im.id));
-    if (unlocked.length === 0) {
+    // 神秘图片（gal_19）始终显示
+    const mysteryItem = imgs.find(im => im.mystery);
+    let items = unlocked.slice();
+    if (mysteryItem && !items.includes(mysteryItem)) items.push(mysteryItem);
+    if (items.length === 0) {
       body.innerHTML = `<div class="gallery-empty">图库暂时空空如也。\n完成调解后会逐步解锁图片。</div>`;
       return;
     }
     let html = '<div class="gallery-grid">';
-    unlocked.forEach(im => {
+    items.forEach(im => {
       const fallback = Assets.galleryPlaceholderUri(im.caption);
       const src = im.file || fallback;
-      html += `<div class="gallery-item">
+      const clickable = im.mystery ? 'style="cursor:pointer" data-mystery="1"' : '';
+      html += `<div class="gallery-item" ${clickable}>
         <img src="${src}" onerror="this.onerror=null;this.src='${fallback}'">
         <div class="cap">${this.escape(im.caption || '')}</div>
       </div>`;
     });
     html += '</div>';
     body.innerHTML = html;
+    // 神秘图片点击：50%进小游戏，50%触发"亾"彩蛋
+    body.querySelectorAll('[data-mystery="1"]').forEach(el => {
+      el.addEventListener('click', () => this.triggerMystery());
+    });
+  },
+
+  // 神秘图片点击效果：50%进小游戏，50%触发"亾"覆盖彩蛋
+  triggerMystery() {
+    if (Math.random() < 0.5) {
+      window.open('minigame/index.html', '_blank');
+      return;
+    }
+    const phone = document.getElementById('phone');
+    if (!phone || document.getElementById('mysteryOverlay')) return;
+    // 创建"亾"覆盖层
+    const overlay = document.createElement('div');
+    overlay.id = 'mysteryOverlay';
+    overlay.className = 'mystery-overlay';
+    // 填满"亾"字符
+    const char = '亾';
+    const cols = Math.ceil(phone.offsetWidth / 28);
+    const rows = Math.ceil(phone.offsetHeight / 28);
+    for (let i = 0; i < cols * rows; i++) {
+      const s = document.createElement('span');
+      s.textContent = char;
+      // 随机亮度营造层次感
+      const lum = 10 + Math.floor(Math.random() * 25);
+      s.style.color = `rgb(${lum},${lum},${lum})`;
+      overlay.appendChild(s);
+    }
+    phone.appendChild(overlay);
+    // 3s后移除覆盖层，让所有文字变透明（重启即刷新页面可恢复）
+    setTimeout(() => {
+      overlay.remove();
+      phone.classList.add('text-vanished');
+    }, 3000);
   },
 
   // ===== 更新通知 =====

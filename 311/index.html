@@ -121,18 +121,89 @@
     '311': '档案311：你。状态：在职。备注：自我认知稳定度...待评估。',
     '7': '档案007：回声小人原型。收容状态：已逃逸。',
     'who': '档案???：谁谁谁谁。不是一个人，是一种症状。',
-    '1107': '档案1107：这个糟透的夏天，我也患上了空心病。'
+    '1107': '档案1107：这个糟透的夏天，我也患上了空心病。',
+    '325': '档案325：坍缩体。一种从高密度信息环境中凝聚而生的异常实体。它们没有自我，只有本能——吞噬、模仿、扩散。收容建议：隔离信息源，切断认知链路。备注：部分坍缩体已表现出拟人行为，需高度警惕。',
+    '799': '呼呼呼 ❤ 哐哐哐',
+    '137': '档案137：朴神父。身份：神职人员 / 异象研究者。致力于改造回声生物与治疗空心病，但研究进展甚微。他声称"空心病不是病，是遗忘的终态"。备注：他与调解处的某位调解员有深层关联，档案等级：机密。'
   };
+  // ❤雨密码
+  const heartRainCodes = ['99', '520', '521'];
+  // 崩坏密码
+  const crashCode = '33';
+
+  function showText(txt, color) {
+    const out = document.getElementById('secretOut');
+    out.textContent = '> ' + txt;
+    out.style.color = color || '#2ecc71';
+  }
+
+  // ❤雨效果
+  function startHeartRain() {
+    const layer = document.createElement('div');
+    layer.id = 'heartRainLayer';
+    layer.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9999;overflow:hidden';
+    document.body.appendChild(layer);
+    let count = 0;
+    const max = 80;
+    const spawn = setInterval(() => {
+      if (count >= max) { clearInterval(spawn); return; }
+      const h = document.createElement('div');
+      h.textContent = '❤';
+      h.style.cssText = 'position:absolute;font-size:' + (12 + Math.random() * 24) + 'px;color:#e74c3c;left:' + Math.random() * 100 + 'vw;top:-30px;opacity:' + (0.5 + Math.random() * 0.5) + ';transition:transform ' + (3 + Math.random() * 3) + 's linear,opacity 0.5s';
+      layer.appendChild(h);
+      requestAnimationFrame(() => { h.style.transform = 'translateY(' + (window.innerHeight + 50) + 'px) rotate(' + (Math.random() * 360) + 'deg)'; });
+      setTimeout(() => h.remove(), 6500);
+      count++;
+    }, 150);
+    showText('❤ 下起来了。', '#e74c3c');
+    // 10秒后清理
+    setTimeout(() => { if (layer.parentNode) layer.remove(); }, 12000);
+  }
+
+  // 33崩坏效果：填满"遗忘"，然后关闭页面
+  function crashPage() {
+    showText('系统错误：档案正在被遗忘...', '#e74c3c');
+    setTimeout(() => {
+      const layer = document.createElement('div');
+      layer.id = 'crashLayer';
+      layer.style.cssText = 'position:fixed;inset:0;background:#0a0a0a;z-index:99999;overflow:hidden;cursor:not-allowed';
+      document.body.appendChild(layer);
+      const fill = () => {
+        if (!layer.parentNode) return;
+        for (let i = 0; i < 50; i++) {
+          const t = document.createElement('span');
+          t.textContent = '遗忘';
+          t.style.cssText = 'position:absolute;color:' + (Math.random() > 0.5 ? '#1a1a1a' : '#2a1a1a') + ';font-size:' + (8 + Math.random() * 20) + 'px;left:' + Math.random() * 100 + 'vw;top:' + Math.random() * 100 + 'vh;font-family:monospace';
+          layer.appendChild(t);
+        }
+      };
+      fill();
+      const interval = setInterval(fill, 200);
+      // 3秒后尝试关闭页面
+      setTimeout(() => {
+        clearInterval(interval);
+        // 尝试关闭窗口（仅对脚本打开的窗口有效）
+        window.close();
+        // 关闭失败则重定向回首页
+        setTimeout(() => { window.location.href = '../index.html'; }, 500);
+      }, 3500);
+    }, 800);
+  }
+
   document.getElementById('codeInput').addEventListener('keydown', function(e) {
     if (e.key === 'Enter') {
       const code = this.value.trim().toLowerCase();
-      const out = document.getElementById('secretOut');
-      if (codes[code]) {
-        out.textContent = '> ' + codes[code];
-      } else if (code) {
-        out.textContent = '> 查无此档案。';
-        out.style.color = '#e74c3c';
-        setTimeout(() => { out.style.color = '#2ecc71'; }, 1000);
+      this.value = '';
+      if (!code) return;
+      if (code === crashCode) {
+        crashPage();
+      } else if (heartRainCodes.includes(code)) {
+        startHeartRain();
+      } else if (codes[code]) {
+        showText(codes[code]);
+      } else {
+        showText('查无此档案。', '#e74c3c');
+        setTimeout(() => { document.getElementById('secretOut').style.color = '#2ecc71'; }, 1000);
       }
     }
   });
