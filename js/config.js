@@ -97,8 +97,8 @@ const GAME_CONFIG = {
         },
         {
           h: '试玩密钥',
-          p: '下方提供一个试玩密钥，额度有限，请勿滥用。点击可一键复制。',
-          demoKey: 'sk-gfuapinkvmeuzkflnnljprbtrrbtcuwebohmzulgzafwlxqd'
+          p: '已过期',
+          demoKey: 'sk-wobuyaoshangzaoba'
         },
         {
           h: '如何游玩',
